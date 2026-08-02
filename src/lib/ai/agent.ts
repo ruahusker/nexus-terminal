@@ -45,7 +45,10 @@ export async function ask(
     if (!msg.tool_calls?.length) {
       return { answer: msg.content?.trim() || "(empty answer from model)", trace };
     }
-    messages.push(msg);
+    // Echo the assistant turn WITHOUT reasoning_content — the chain-of-thought
+    // is display-only, and resending it bills input tokens every round.
+    const { reasoning_content: _drop, ...cleanMsg } = msg as ChatMessage & { reasoning_content?: string };
+    messages.push(cleanMsg);
     for (const tc of msg.tool_calls) {
       let args: Record<string, unknown> = {};
       try {
