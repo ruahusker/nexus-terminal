@@ -98,45 +98,77 @@ async function rpc(token: string, sessionId: string | null, msg: JsonRpc, timeou
 
 type ToolCall = (tool: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
-/** Open one MCP session, run fn with a tools/call closure, retry once on 401. */
-async function withSession<T>(fn: (call: ToolCall) => Promise<T>): Promise<T> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const token = readToken();
-    if (!token) throw new ProviderError("Robinhood MCP token unavailable — is the /trading logger running?", "config");
-    try {
+// ── Shared MCP session ──
+// One session is reused across all tool calls (the previous fresh-handshake-
+// per-call model let the quote stream starve interactive requests). Re-init
+// on 401 (token rotation) or when the server forgets the session (404/410).
+const SESSION_TTL = 10 * 60_000;
+let shared: { token: string; sid: string | null; at: number } | null = null;
+let initPromise: Promise<{ token: string; sid: string | null }> | null = null;
+let rpcId = 1;
+
+class SessionGone extends Error {}
+
+async function ensureSession(): Promise<{ token: string; sid: string | null }> {
+  const token = readToken();
+  if (!token) throw new ProviderError("Robinhood MCP token unavailable — is the /trading logger running?", "config");
+  if (shared && shared.token === token && Date.now() - shared.at < SESSION_TTL) return shared;
+  if (!initPromise) {
+    initPromise = (async () => {
       const init = await rpc(token, null, {
         jsonrpc: "2.0",
-        id: 1,
+        id: rpcId++,
         method: "initialize",
         params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "nexus-terminal", version: "1.0.0" } },
       }, 30_000);
-      const sid = init.sessionId;
-      await rpc(token, sid, { jsonrpc: "2.0", method: "notifications/initialized" }, 15_000);
-      let nextId = 2;
-      const call: ToolCall = async (tool, args) => {
-        const r = await rpc(token, sid, { jsonrpc: "2.0", id: nextId++, method: "tools/call", params: { name: tool, arguments: args } }, 60_000);
-        if (r.body?.error) throw new ProviderError(`Robinhood ${tool}: ${r.body.error.message ?? "RPC error"}`, "upstream");
-        const result = r.body?.result as { isError?: boolean; structuredContent?: Record<string, unknown>; content?: { text?: string }[] } | undefined;
-        if (!result) throw new ProviderError(`Robinhood ${tool}: empty result`, "upstream");
-        if (result.isError) {
-          const msg = (result.content ?? []).map((c) => c.text ?? "").join(" ").trim() || "tool error";
-          throw new ProviderError(`Robinhood ${tool}: ${msg}`, "upstream");
-        }
-        if (result.structuredContent) return result.structuredContent;
-        for (const item of result.content ?? []) {
-          if (item.text) {
-            try {
-              return JSON.parse(item.text) as Record<string, unknown>;
-            } catch {
-              return { text: item.text };
-            }
+      await rpc(token, init.sessionId, { jsonrpc: "2.0", method: "notifications/initialized" }, 15_000);
+      shared = { token, sid: init.sessionId, at: Date.now() };
+      return shared;
+    })().finally(() => {
+      initPromise = null;
+    });
+  }
+  return initPromise;
+}
+
+async function withSession<T>(fn: (call: ToolCall) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const sess = await ensureSession();
+    const call: ToolCall = async (tool, args) => {
+      let r: Awaited<ReturnType<typeof rpc>>;
+      try {
+        r = await rpc(sess.token, sess.sid, { jsonrpc: "2.0", id: rpcId++, method: "tools/call", params: { name: tool, arguments: args } }, 20_000);
+      } catch (err) {
+        // A 404/410 from the server means our session is gone — force re-init.
+        if (err instanceof ProviderError && /HTTP (404|410)/.test(err.message)) throw new SessionGone();
+        throw err;
+      }
+      if (r.body?.error) throw new ProviderError(`Robinhood ${tool}: ${r.body.error.message ?? "RPC error"}`, "upstream");
+      const result = r.body?.result as { isError?: boolean; structuredContent?: Record<string, unknown>; content?: { text?: string }[] } | undefined;
+      if (!result) throw new ProviderError(`Robinhood ${tool}: empty result`, "upstream");
+      if (result.isError) {
+        const msg = (result.content ?? []).map((c) => c.text ?? "").join(" ").trim() || "tool error";
+        throw new ProviderError(`Robinhood ${tool}: ${msg}`, "upstream");
+      }
+      if (result.structuredContent) return result.structuredContent;
+      for (const item of result.content ?? []) {
+        if (item.text) {
+          try {
+            return JSON.parse(item.text) as Record<string, unknown>;
+          } catch {
+            return { text: item.text };
           }
         }
-        return {};
-      };
+      }
+      return {};
+    };
+    try {
       return await fn(call);
     } catch (err) {
-      if (err instanceof Unauthorized && attempt === 0) continue; // token rotated — re-read & retry once
+      if ((err instanceof Unauthorized || err instanceof SessionGone) && attempt === 0) {
+        shared = null; // force re-init (and re-read of a possibly rotated token)
+        continue;
+      }
       if (err instanceof Unauthorized) throw new ProviderError("Robinhood MCP auth rejected (401)", "config");
       if (err instanceof ProviderError) throw err;
       throw new ProviderError(`Robinhood MCP: ${String(err)}`, "upstream");
@@ -362,10 +394,14 @@ function aggregate(bars: Bar[], n: number): Bar[] {
 export async function getBars(symbol: string, interval: BarInterval, days: number): Promise<Bar[]> {
   return withSession(async (call) => {
     const start = new Date(Date.now() - days * 86_400_000).toISOString();
-    // 24_5 includes overnight + pre/post sessions; fall back to extended, then regular.
+    // Session bounds only matter for intraday intervals — day/week bars are
+    // regular-session by convention. 24_5 adds overnight + pre/post; fall
+    // back to extended, then regular.
+    const boundAttempts: ("24_5" | "extended" | undefined)[] =
+      interval === "1d" || interval === "1wk" ? [undefined] : ["24_5", "extended", undefined];
     let raw: RhBar[] = [];
     let lastErr: unknown = null;
-    for (const bounds of ["24_5", "extended", undefined] as const) {
+    for (const bounds of boundAttempts) {
       try {
         const p = await call("get_equity_historicals", {
           symbols: [symbol], start_time: start, interval: INTERVAL_MAP[interval],

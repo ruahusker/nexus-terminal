@@ -335,7 +335,9 @@ export const facade = {
 
   async getMarketOverview(): Promise<MarketOverview> {
     if (dataMode() === "demo") return cached("mkt:overview", QUOTE_TTL, () => demo.getMarketOverview());
-    return cachedAsync("mkt:live", QUOTE_TTL, () => buildLiveOverview());
+    // Heavy build (indexes + commodities + sectors + movers) — don't rebuild
+    // on the quote TTL; the per-quote data inside has its own freshness.
+    return cachedAsync("mkt:live", 30_000, () => buildLiveOverview());
   },
 
   getNews(opts: { symbol?: string; topic?: string; q?: string; limit?: number }): NewsItem[] | Promise<NewsItem[]> {

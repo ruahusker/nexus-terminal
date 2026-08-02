@@ -33,7 +33,7 @@ function NewsCrawl() {
       onBlur={() => setPaused(false)}
       title={item.headline}
       aria-label={`Latest headline: ${item.headline} — open news`}
-      className="flex h-5 w-full items-center gap-2 overflow-hidden border-t border-nx-border bg-nx-inset px-2 text-left text-[10px]"
+      className="flex h-6 w-full items-center gap-2 overflow-hidden border-t border-nx-border bg-nx-inset px-2 text-left text-[12px]"
     >
       <span className="shrink-0 font-semibold text-nx-amber">NEWS</span>
       <span className="shrink-0 tabular-nums text-nx-faint">{fmtRelative(item.publishedAt)}</span>
@@ -89,7 +89,7 @@ export function StatusBar({ zoom, onZoom }: { zoom: number; onZoom: (z: number) 
       </div>
 
       <NewsCrawl />
-      <footer className="flex h-6 items-center gap-4 border-t border-nx-border-strong bg-nx-panel px-2 text-[10px]" aria-label="Status bar">
+      <footer className="flex h-6 items-center gap-4 border-t border-nx-border-strong bg-nx-panel px-2 text-[11px]" aria-label="Status bar">
         <span className="font-bold tracking-wider text-nx-amber">NEXUS TERMINAL</span>
         {!data ? (
           <span className="text-nx-faint">CONNECTING…</span>
