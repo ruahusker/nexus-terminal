@@ -143,7 +143,8 @@ export function CommandBar() {
       const sel = suggestions[selIdx];
       if (sel && suggestions.length > 0) {
         if (sel.kind === "command") {
-          if (sel.usage.includes("SYM")) {
+          const needsSymbol = COMMANDS.find((c) => c.verb === sel.verb)?.takesSymbol ?? false;
+          if (needsSymbol) {
             setInput(`${sel.verb} `);
             setResults([]);
           } else {

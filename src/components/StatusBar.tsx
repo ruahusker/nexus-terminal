@@ -6,7 +6,34 @@ import { useEffect, useState } from "react";
 import { useTerminal } from "./TerminalContext";
 import { useApi } from "./ui";
 import { apiPath } from "@/lib/basePath";
-import type { MarketOverview } from "@/lib/types";
+import { fmtRelative } from "@/lib/format";
+import type { MarketOverview, NewsItem } from "@/lib/types";
+
+/** Rotating latest-headline strip above the status bar; click opens NEWS. */
+function NewsCrawl() {
+  const { open } = useTerminal();
+  const { data } = useApi<NewsItem[]>("/api/news?limit=12", 300_000);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => i + 1), 6_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!data || data.length === 0) return null;
+  const item = data[idx % data.length];
+  if (!item) return null;
+  return (
+    <button
+      onClick={() => open("news")}
+      aria-label={`Latest headline: ${item.headline} — open news`}
+      className="flex h-5 w-full items-center gap-2 overflow-hidden border-t border-nx-border bg-nx-inset px-2 text-left text-[10px]"
+    >
+      <span className="shrink-0 font-semibold text-nx-amber">NEWS</span>
+      <span className="shrink-0 tabular-nums text-nx-faint">{fmtRelative(item.publishedAt)}</span>
+      <span className="shrink-0 text-nx-muted">{item.source}</span>
+      <span className="truncate text-nx-text [font-family:var(--font-sans)]">{item.headline}</span>
+    </button>
+  );
+}
 
 function Clock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -52,12 +79,13 @@ export function StatusBar({ zoom, onZoom }: { zoom: number; onZoom: (z: number) 
         ))}
       </div>
 
+      <NewsCrawl />
       <footer className="flex h-6 items-center gap-4 border-t border-nx-border-strong bg-nx-panel px-2 text-[10px]" aria-label="Status bar">
         <span className="font-bold tracking-wider text-nx-amber">NEXUS TERMINAL</span>
         {(!data || data.status === "SAMPLE") ? (
           <span className="text-nx-purple">DEMO · SAMPLE DATA</span>
         ) : (
-          <span className="text-nx-up">LIVE · YAHOO/COINBASE/MASSIVE</span>
+          <span className="text-nx-up">LIVE · ROBINHOOD/COINBASE/YAHOO</span>
         )}
         <span className={statusColor}>US: {us}</span>
         <span className="text-nx-up">CRYPTO: 24/7</span>

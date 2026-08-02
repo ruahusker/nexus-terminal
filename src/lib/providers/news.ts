@@ -23,8 +23,8 @@ const yahooSymbolFeed = (symbol: string): FeedDef => ({
 });
 
 const GENERAL_FEEDS: FeedDef[] = [
-  { url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", source: "CNBC" },
-  { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
+  { url: "https://www.cnbc.com/id/10000664/device/rss/rss.html", source: "CNBC Markets" },
+  { url: "https://feeds.content.dowjones.io/public/rss/mw_marketpulse", source: "MarketWatch" },
   // Yahoo with s=SPY as a broad-market proxy when no symbol is requested
   yahooSymbolFeed("SPY"),
 ];

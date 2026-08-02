@@ -14,6 +14,10 @@ export function isConfigured(): boolean {
   return Boolean(process.env.KIMI_API_KEY);
 }
 
+export function modelName(): string {
+  return MODEL;
+}
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;

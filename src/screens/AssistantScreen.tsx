@@ -55,12 +55,16 @@ export default function AssistantScreen() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [model, setModel] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api<{ configured: boolean }>("/api/ai")
-      .then((r) => setConfigured(r.configured))
+    api<{ configured: boolean; model?: string }>("/api/ai")
+      .then((r) => {
+        setConfigured(r.configured);
+        setModel(r.model ?? "");
+      })
       .catch(() => setConfigured(false));
     inputRef.current?.focus();
   }, []);
@@ -97,7 +101,7 @@ export default function AssistantScreen() {
     <div className="flex h-full flex-col overflow-hidden" aria-label="AI assistant">
       <div className="flex items-center justify-between border-b border-nx-border px-2 py-0.5 text-[10px] text-nx-muted">
         <SectionTitle>AI Assistant</SectionTitle>
-        <span className="text-nx-faint">{configured === null ? "…" : configured ? "kimi · tools: terminal data" : "not configured"}</span>
+        <span className="text-nx-faint">{configured === null ? "…" : configured ? `${model || "kimi"} · reasoning low · tools: terminal data` : "not configured"}</span>
       </div>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto p-2">

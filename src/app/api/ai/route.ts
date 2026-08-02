@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ask } from "@/lib/ai/agent";
-import { isConfigured } from "@/lib/ai/kimi";
+import { isConfigured, modelName } from "@/lib/ai/kimi";
 import { requireUser } from "@/lib/auth";
 import { handleError, ok } from "@/lib/api";
 
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireUser();
-    return ok({ configured: isConfigured() });
+    return ok({ configured: isConfigured(), model: modelName() });
   } catch (err) {
     return handleError(err);
   }
