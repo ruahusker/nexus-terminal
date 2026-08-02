@@ -184,3 +184,24 @@ export interface Filing {
   url: string;
   sample: boolean;
 }
+
+export interface PriceBookLevel {
+  price: number;
+  quantity: number; // resting shares at the level
+}
+
+/** Level 2 order book snapshot — empty sides mean no resting liquidity (e.g. market closed). */
+export interface PriceBook extends Provenance {
+  symbol: string;
+  bids: PriceBookLevel[];
+  asks: PriceBookLevel[];
+}
+
+/** Market-wide upcoming earnings report. */
+export interface EarningsEvent extends Provenance {
+  symbol: string;
+  date: string; // ISO date
+  timing: string; // "am" | "pm"
+  epsEstimate: number | null;
+  epsActual: number | null;
+}

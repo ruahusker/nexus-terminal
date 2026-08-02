@@ -1,17 +1,20 @@
 "use client";
 
-// ECONOMY — econ calendar, indicator series browser, and the UST yield curve.
+// ECONOMY — econ calendar, indicator series browser, the UST yield curve,
+// and the market-wide earnings calendar.
 
 import { useMemo, useState } from "react";
 import { EmptyState, ErrorState, Loading, ProvenanceBadge, SampleBanner, SectionTitle, useApi } from "@/components/ui";
+import { useTerminal } from "@/components/TerminalContext";
 import { dirClass, dirGlyph, fmtBps, fmtNum, fmtTime } from "@/lib/format";
-import type { EconEvent, EconSeries, MarketOverview } from "@/lib/types";
+import type { EarningsEvent, EconEvent, EconSeries, MarketOverview } from "@/lib/types";
 
-type Tab = "calendar" | "indicators" | "curve";
+type Tab = "calendar" | "indicators" | "curve" | "earnings";
 type ImpFilter = "all" | "high" | "medplus";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "calendar", label: "CALENDAR" },
+  { id: "earnings", label: "EARNINGS" },
   { id: "indicators", label: "INDICATORS" },
   { id: "curve", label: "YIELD CURVE" },
 ];
@@ -435,8 +438,101 @@ export default function EconomyScreen({ symbol: _symbol }: { symbol?: string }) 
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         {tab === "calendar" && <CalendarView />}
+        {tab === "earnings" && <EarningsView />}
         {tab === "indicators" && <IndicatorsView />}
         {tab === "curve" && <YieldCurveView />}
+      </div>
+    </div>
+  );
+}
+
+
+/** EARNINGS — market-wide earnings calendar, grouped by date.
+ *  Defaults to 3 days (the 7-day MCP pull takes ~45s on first load). */
+function EarningsView() {
+  const { open } = useTerminal();
+  const [days, setDays] = useState(3);
+  const { data, error, loading, retry } = useApi<EarningsEvent[]>(`/api/earnings?days=${days}`, 300_000);
+
+  const groups = useMemo(() => {
+    const MAX_ROWS = 400;
+    const out: { day: string; items: EarningsEvent[] }[] = [];
+    let count = 0;
+    for (const ev of (data ?? []).slice(0, MAX_ROWS)) {
+      const day = new Date(ev.date + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+      const last = out[out.length - 1];
+      if (last && last.day === day) last.items.push(ev);
+      else out.push({ day, items: [ev] });
+      count++;
+    }
+    return { groups: out, capped: (data?.length ?? 0) > count ? (data?.length ?? 0) - count : 0 };
+  }, [data]);
+
+  if (loading && !data) return <Loading label="Loading earnings calendar" />;
+  if (error && !data) return <ErrorState message={error} onRetry={retry} />;
+
+  const hasSample = (data ?? []).some((e) => e.status === "SAMPLE");
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden" aria-label="Earnings calendar">
+      {hasSample && <SampleBanner />}
+      <div className="flex items-center gap-1 border-b border-nx-border px-2 py-1" role="group" aria-label="Date range">
+        <span className="mr-1 text-[10px] uppercase tracking-widest text-nx-muted">Range</span>
+        {([3, 7, 14] as const).map((d) => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            aria-pressed={days === d}
+            className={`border px-2 py-0.5 text-[10px] ${days === d ? "border-nx-amber/50 text-nx-amber" : "border-nx-border text-nx-muted hover:text-nx-text"}`}
+          >
+            {d}D
+          </button>
+        ))}
+        {loading && data && <span className="ml-2 text-[9px] text-nx-faint">refreshing…</span>}
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        {groups.groups.length === 0 ? (
+          <EmptyState message="No earnings scheduled this week" hint="Widen the window in a later build, or check DES <SYM> for a specific name" />
+        ) : (
+          <>
+            {groups.groups.map((g) => (
+            <section key={g.day} aria-label={`Earnings on ${g.day}`}>
+              <SectionTitle>{g.day}</SectionTitle>
+              <table className="nx-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th><th>Timing</th><th className="text-right">EPS Est</th><th className="text-right">EPS Actual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.items.map((ev, i) => (
+                    <tr key={`${ev.symbol}-${i}`}>
+                      <td>
+                        <button
+                          onClick={() => open("security", ev.symbol)}
+                          aria-label={`Open ${ev.symbol}`}
+                          className="font-semibold text-nx-cyan hover:underline"
+                        >
+                          {ev.symbol}
+                        </button>
+                      </td>
+                      <td className="text-nx-muted">{ev.timing === "am" ? "Before open" : ev.timing === "pm" ? "After close" : ev.timing || "—"}</td>
+                      <td className="tabular-nums text-right text-nx-text">{ev.epsEstimate != null ? fmtNum(ev.epsEstimate) : "—"}</td>
+                      <td className="tabular-nums text-right text-nx-text-bright">{ev.epsActual != null ? fmtNum(ev.epsActual) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ))}
+          {groups.capped > 0 && (
+            <div className="px-2 py-1 text-[10px] text-nx-faint">+ {groups.capped} more this week — use DES &lt;SYM&gt; for a specific name</div>
+          )}
+          </>
+        )}
+      </div>
+      <div className="border-t border-nx-border px-2 py-0.5 text-[9px] text-nx-faint">
+        Next {days} days · Source: {data?.[0]?.provider ?? "—"} · Times are approximate (before open / after close) · 7D/14D first load can take ~1 min
       </div>
     </div>
   );

@@ -8,13 +8,14 @@ import {
   EmptyState, ErrorState, Loading, ProvenanceBadge, SampleBanner, SectionTitle, Sparkline, useApi,
 } from "@/components/ui";
 import { dirClass, dirGlyph, fmtCompact, fmtNum, fmtPct, fmtPrice, fmtRelative } from "@/lib/format";
-import type { Bar, Filing, FinancialPeriod, Fundamentals, InstrumentInfo, Quote } from "@/lib/types";
+import type { Bar, Filing, FinancialPeriod, Fundamentals, InstrumentInfo, PriceBook, PriceBookLevel, Quote } from "@/lib/types";
 
-type TabId = "overview" | "financials" | "earnings" | "filings";
+type TabId = "overview" | "financials" | "earnings" | "book" | "filings";
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "OVERVIEW" },
   { id: "financials", label: "FINANCIALS" },
   { id: "earnings", label: "EARNINGS" },
+  { id: "book", label: "BOOK" },
   { id: "filings", label: "FILINGS" },
 ];
 
@@ -94,6 +95,7 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
   const barsResp = useApi<{ bars: Bar[] }>(sym ? `/api/bars?symbol=${encodeURIComponent(sym)}&interval=1d&range=3M` : null);
   const barsData = barsResp.data?.bars ?? null;
   const filings = useApi<Filing[]>(sym && tab === "filings" ? `/api/filings?symbol=${encodeURIComponent(sym)}` : null);
+  const book = useApi<PriceBook>(sym && tab === "book" ? `/api/book?symbol=${encodeURIComponent(sym)}` : null, 5_000);
 
   if (!sym) return <EmptyState message="No security selected" hint="Type a symbol in the command bar, e.g. AAPL" />;
   if (quotes.loading && !quotes.data) return <Loading label={`Loading ${sym}`} />;
@@ -312,6 +314,27 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
           </div>
         )}
 
+        {tab === "book" && (
+          <div className="bg-nx-panel">
+            {book.loading && !book.data ? (
+              <Loading label="Loading order book" />
+            ) : book.error && !book.data ? (
+              <ErrorState message={book.error} onRetry={book.retry} />
+            ) : book.data ? (
+              <section aria-label="Level 2 order book">
+                <SectionTitle right={book.data.status === "SAMPLE" ? <span className="text-[9px] text-nx-faint">SAMPLE</span> : <span className="text-[9px] text-nx-faint">refreshes 5s · {fmtRelative(book.data.asOf)}</span>}>
+                  Level 2 · {book.data.symbol}
+                </SectionTitle>
+                {book.data.bids.length === 0 && book.data.asks.length === 0 ? (
+                  <EmptyState message="No resting liquidity right now" hint="The book is empty outside regular market hours — check back during the session" />
+                ) : (
+                  <BookLadder bids={book.data.bids} asks={book.data.asks} />
+                )}
+              </section>
+            ) : null}
+          </div>
+        )}
+
         {tab === "filings" && (
           <div className="bg-nx-panel">
             {filings.loading && !filings.data ? (
@@ -354,6 +377,68 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
 
       <div className="border-t border-nx-border px-2 py-0.5 text-[9px] text-nx-faint">
         Quote refreshes every 15s · Fundamentals: {f?.provider ?? "—"} · Source: {q.provider}
+      </div>
+    </div>
+  );
+}
+
+/** Side-by-side Level 2 ladder with depth bars and the inside-market spread. */
+function BookLadder({ bids, asks }: { bids: PriceBookLevel[]; asks: PriceBookLevel[] }) {
+  const maxQ = Math.max(1, ...bids.map((l) => l.quantity), ...asks.map((l) => l.quantity));
+  const rows = Math.max(bids.length, asks.length, 1);
+  const bidTotal = bids.reduce((s, l) => s + l.quantity, 0);
+  const askTotal = asks.reduce((s, l) => s + l.quantity, 0);
+  const insideBid = bids[0]?.price;
+  const insideAsk = asks[0]?.price;
+  const spread = insideBid != null && insideAsk != null ? insideAsk - insideBid : null;
+
+  const cell = (l: PriceBookLevel | undefined, side: "bid" | "ask") => {
+    if (!l) return <td colSpan={2} />;
+    const w = Math.max(2, (l.quantity / maxQ) * 100);
+    return (
+      <>
+        <td className="relative tabular-nums text-right">
+          <span className={`absolute inset-y-0 ${side === "bid" ? "right-0 bg-nx-up/10" : "left-0 bg-nx-down/10"}`} style={{ width: `${w}%` }} aria-hidden />
+          <span className="relative text-nx-muted">{fmtCompact(l.quantity)}</span>
+        </td>
+        <td className={`tabular-nums font-semibold ${side === "bid" ? "text-nx-up" : "text-nx-down"}`}>{fmtPrice(l.price, "")}</td>
+      </>
+    );
+  };
+
+  return (
+    <div className="p-1">
+      <table className="nx-table w-full">
+        <thead>
+          <tr>
+            <th className="text-right">Bid size</th><th>Bid</th>
+            <th className="w-px" />
+            <th>Ask</th><th className="text-right">Ask size</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rows }, (_, i) => (
+            <tr key={i}>
+              {cell(bids[i], "bid")}
+              <td className="w-2" />
+              {cell(asks[i], "ask")}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-1 flex justify-between px-1 text-[10px] tabular-nums text-nx-muted">
+        <span>
+          {spread != null && (
+            <>spread <span className="text-nx-text-bright">{fmtPrice(spread, "")}</span> · </>
+          )}
+          bid depth <span className="text-nx-up">{fmtCompact(bidTotal)}</span>
+        </span>
+        <span>
+          ask depth <span className="text-nx-down">{fmtCompact(askTotal)}</span>
+          {askTotal + bidTotal > 0 && (
+            <> · {Math.round((bidTotal / (bidTotal + askTotal)) * 100)}% bid</>
+          )}
+        </span>
       </div>
     </div>
   );

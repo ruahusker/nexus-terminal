@@ -11,7 +11,9 @@
 
 import { readFileSync } from "node:fs";
 import { expectedMove } from "../blackScholes";
-import type { Bar, BarInterval, Fundamentals, OptionContract, OptionsChain, Quote } from "../types";
+import type {
+  Bar, BarInterval, EarningsEvent, Fundamentals, OptionContract, OptionsChain, PriceBook, PriceBookLevel, Quote,
+} from "../types";
 import { ProviderError } from "./errors";
 
 const MCP_URL = process.env.ROBINHOOD_MCP_URL ?? "https://agent.robinhood.com/mcp/trading";
@@ -698,4 +700,59 @@ export async function getIndexBars(symbol: string, interval: BarInterval, days: 
   });
 }
 
-export const robinhood = { isConfigured, getQuote, getQuotes, getBars, getOptionsChain, getFundamentals, getIndexQuote, getIndexQuotes, getIndexBars };
+// ── Level 2 order book (max 4 symbols per call; empty sides when closed) ──
+
+interface RhBookLevel {
+  price?: string;
+  quantity?: string;
+}
+
+export async function getPriceBook(symbol: string): Promise<PriceBook> {
+  return withSession(async (call) => {
+    const p = await call("get_equity_price_book", { symbols: [symbol] });
+    const book = ((p?.data as Record<string, unknown>)?.books as { symbol?: string; updated_at?: string; bids?: RhBookLevel[]; asks?: RhBookLevel[] }[] | undefined)?.[0];
+    if (!book?.symbol) throw new ProviderError(`Robinhood: no price book for ${symbol}`, "not_found");
+    const levels = (list: RhBookLevel[] | undefined): PriceBookLevel[] =>
+      (list ?? []).map((l) => ({ price: num(l.price), quantity: num(l.quantity) })).filter((l) => l.price > 0);
+    return {
+      provider: "robinhood",
+      status: "REALTIME",
+      asOf: book.updated_at || new Date().toISOString(),
+      symbol: book.symbol,
+      bids: levels(book.bids),
+      asks: levels(book.asks),
+    };
+  });
+}
+
+// ── Market-wide earnings calendar (up to 31 days out) ──
+
+interface RhEarningsCalRow {
+  symbol?: string;
+  eps?: { estimate?: string | null; actual?: string | null };
+  report?: { date?: string; timing?: string };
+}
+
+export async function getEarningsCalendar(days: number): Promise<EarningsEvent[]> {
+  return withSession(async (call) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const p = await call("get_earnings_calendar", { start_date: today, days: Math.min(31, Math.max(1, days)) });
+    const rows = ((p?.data as Record<string, unknown>)?.results as RhEarningsCalRow[] | undefined) ?? [];
+    const asOf = new Date().toISOString();
+    return rows
+      .filter((r) => r.symbol && r.report?.date)
+      .map((r) => ({
+        provider: "robinhood",
+        status: "REALTIME" as const,
+        asOf,
+        symbol: r.symbol ?? "",
+        date: r.report?.date ?? "",
+        timing: r.report?.timing ?? "",
+        epsEstimate: r.eps?.estimate != null && r.eps.estimate !== "" ? num(r.eps.estimate) : null,
+        epsActual: r.eps?.actual != null && r.eps.actual !== "" ? num(r.eps.actual) : null,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol));
+  });
+}
+
+export const robinhood = { isConfigured, getQuote, getQuotes, getBars, getOptionsChain, getFundamentals, getIndexQuote, getIndexQuotes, getIndexBars, getPriceBook, getEarningsCalendar };

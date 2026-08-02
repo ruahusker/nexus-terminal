@@ -444,3 +444,61 @@ describe("robinhood.getIndexQuotes", () => {
     await expect(robinhood.getIndexQuotes(["DJI"])).rejects.toBeInstanceOf(ProviderError);
   });
 });
+
+
+describe("robinhood.getPriceBook", () => {
+  it("maps bid/ask ladders", async () => {
+    toolResults = {
+      get_equity_price_book: {
+        data: {
+          books: [
+            {
+              symbol: "AAPL",
+              updated_at: "2026-08-01T15:00:00-04:00",
+              bids: [{ price: "307.30", quantity: "1200" }, { price: "307.25", quantity: "800" }],
+              asks: [{ price: "307.35", quantity: "400" }, { price: "307.40", quantity: "2500" }],
+            },
+          ],
+        },
+      },
+    };
+    const b = await robinhood.getPriceBook("AAPL");
+    expect(b.provider).toBe("robinhood");
+    expect(b.bids.length).toBe(2);
+    expect(b.bids[0]).toEqual({ price: 307.3, quantity: 1200 });
+    expect(b.asks[1]?.quantity).toBe(2500);
+    expect(b.asOf).toBe("2026-08-01T15:00:00-04:00");
+  });
+
+  it("returns empty sides when the market is closed", async () => {
+    toolResults = { get_equity_price_book: { data: { books: [{ symbol: "AAPL", updated_at: "", bids: [], asks: [] }] } } };
+    const b = await robinhood.getPriceBook("AAPL");
+    expect(b.bids).toEqual([]);
+    expect(b.asks).toEqual([]);
+  });
+});
+
+describe("robinhood.getEarningsCalendar", () => {
+  it("maps and sorts upcoming reports", async () => {
+    toolResults = {
+      get_earnings_calendar: {
+        data: {
+          results: [
+            { symbol: "MSFT", eps: { estimate: "3.10", actual: null }, report: { date: "2026-08-06", timing: "pm" } },
+            { symbol: "ABTC", eps: { estimate: "0.15", actual: null }, report: { date: "2026-08-03", timing: "am" } },
+            { symbol: "AAPL", eps: { estimate: "1.75", actual: "1.85" }, report: { date: "2026-08-04", timing: "pm" } },
+          ],
+        },
+      },
+    };
+    const ev = await robinhood.getEarningsCalendar(7);
+    expect(ev.length).toBe(3);
+    expect(ev[0]?.symbol).toBe("ABTC"); // sorted by date
+    expect(ev[0]?.timing).toBe("am");
+    expect(ev[2]?.date).toBe("2026-08-06");
+    expect(ev[1]?.epsEstimate).toBeCloseTo(1.75);
+    expect(ev[1]?.epsActual).toBeCloseTo(1.85);
+    const call = calls.find((c) => c.tool === "get_earnings_calendar");
+    expect(call?.args?.days).toBe(7);
+  });
+});

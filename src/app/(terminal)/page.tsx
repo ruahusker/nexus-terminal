@@ -5,6 +5,7 @@ import { TerminalProvider } from "@/components/TerminalContext";
 import { CommandBar } from "@/components/CommandBar";
 import { WorkspaceView } from "@/components/WorkspaceView";
 import { StatusBar } from "@/components/StatusBar";
+import { BreakingBanner } from "@/components/BreakingBanner";
 
 const ZOOM_KEY = "nexus-zoom";
 const DEFAULT_ZOOM = 1.3;
@@ -35,6 +36,7 @@ export default function Home() {
   return (
     <TerminalProvider>
       <div className="flex h-dvh flex-col overflow-hidden">
+        <BreakingBanner />
         <CommandBar />
         {/* Zoom applies to the workspace only — command bar, news crawl, and
             status bar stay pinned to the viewport edges at every zoom level. */}

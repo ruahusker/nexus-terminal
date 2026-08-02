@@ -22,8 +22,8 @@
 //             analyst targets); labeled SAMPLE fallback when both fail
 
 import type {
-  Bar, BarInterval, EconEvent, EconSeries, Filing, Fundamentals, InstrumentInfo,
-  MarketOverview, NewsItem, OptionsChain, Quote, ScreenerRow,
+  Bar, BarInterval, EarningsEvent, EconEvent, EconSeries, Filing, Fundamentals, InstrumentInfo,
+  MarketOverview, NewsItem, OptionsChain, PriceBook, Quote, ScreenerRow,
 } from "../types";
 import * as demo from "../demo/engine";
 import { lookup, UNIVERSE_MAP, type UniverseEntry } from "../demo/universe";
@@ -459,6 +459,46 @@ export const facade = {
   getFilings(symbol: string): Filing[] | Promise<Filing[]> {
     if (dataMode() === "demo") return cached(`filings:${symbol}`, 300_000, () => demo.getFilings(symbol));
     return cachedAsync(`efil:${symbol}`, 900_000, () => edgar.getFilings(symbol));
+  },
+
+  /** Level 2 order book — Robinhood only; empty SAMPLE book in demo mode. */
+  getPriceBook(symbol: string): PriceBook | Promise<PriceBook> {
+    if (dataMode() === "demo") {
+      return { provider: "demo", status: "SAMPLE", asOf: new Date().toISOString(), symbol, bids: [], asks: [] };
+    }
+    return cachedAsync(`book:${symbol}`, 10_000, async () => {
+      if (!robinhood.isConfigured()) throw new ProviderError("Level 2 book requires the Robinhood provider", "config");
+      return robinhood.getPriceBook(symbol);
+    });
+  },
+
+  /** Market-wide earnings calendar — Robinhood in provider mode; universe-derived in demo. */
+  getEarningsCalendar(days = 7): EarningsEvent[] | Promise<EarningsEvent[]> {
+    if (dataMode() === "demo") {
+      return cached(`earncal:${days}`, 300_000, () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const end = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+        const asOf = new Date().toISOString();
+        const out: EarningsEvent[] = [];
+        for (const sym of [...UNIVERSE_MAP.keys()]) {
+          try {
+            for (const e of demo.getFundamentals(sym).earningsCalendar) {
+              if (e.date >= today && e.date <= end) {
+                out.push({
+                  provider: "demo", status: "SAMPLE", asOf,
+                  symbol: sym, date: e.date, timing: "", epsEstimate: e.epsEstimate, epsActual: e.epsActual,
+                });
+              }
+            }
+          } catch { /* symbol without fundamentals */ }
+        }
+        return out.sort((a, b) => a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol)).slice(0, 120);
+      });
+    }
+    return cachedAsync(`earncal:${days}`, 900_000, async () => {
+      if (!robinhood.isConfigured()) throw new ProviderError("Earnings calendar requires the Robinhood provider", "config");
+      return robinhood.getEarningsCalendar(days);
+    });
   },
 
   getEconCalendar(): EconEvent[] | Promise<EconEvent[]> {

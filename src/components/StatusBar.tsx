@@ -91,7 +91,9 @@ export function StatusBar({ zoom, onZoom }: { zoom: number; onZoom: (z: number) 
       <NewsCrawl />
       <footer className="flex h-6 items-center gap-4 border-t border-nx-border-strong bg-nx-panel px-2 text-[10px]" aria-label="Status bar">
         <span className="font-bold tracking-wider text-nx-amber">NEXUS TERMINAL</span>
-        {(!data || data.status === "SAMPLE") ? (
+        {!data ? (
+          <span className="text-nx-faint">CONNECTING…</span>
+        ) : data.status === "SAMPLE" ? (
           <span className="text-nx-purple">DEMO · SAMPLE DATA</span>
         ) : (
           <span className="text-nx-up">LIVE · ROBINHOOD/COINBASE/YAHOO</span>
