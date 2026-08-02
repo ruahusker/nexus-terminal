@@ -20,7 +20,12 @@ function QuoteRow({ q, onOpen }: { q: Quote; onOpen: (s: string) => void }) {
       className="cursor-pointer"
       aria-label={`${q.symbol} ${fmtPrice(q.price)} ${fmtPct(q.changePct)}`}
     >
-      <td className="font-semibold text-nx-cyan">{q.symbol}</td>
+      <td className="font-semibold text-nx-cyan">
+        {q.symbol}
+        {q.priceSession === "EXTENDED" && (
+          <span className="ml-1 text-[8px] uppercase text-nx-amber" title="Extended-hours / overnight price">ext</span>
+        )}
+      </td>
       <td className="text-nx-text">{q.name ?? ""}</td>
       <td className="tabular-nums text-nx-text-bright">{fmtPrice(q.price, "")}</td>
       <td className={`tabular-nums ${dirClass(q.changePct)}`}>
@@ -89,7 +94,7 @@ export default function MarketsScreen() {
   const merge = (qs: Quote[]): Quote[] =>
     qs.map((q) => {
       const s = live.get(q.symbol);
-      return s ? { ...q, price: s.price, change: s.change, changePct: s.changePct, bid: s.bid, ask: s.ask, asOf: s.asOf, provider: s.provider, status: s.status } : q;
+      return s ? { ...q, price: s.price, change: s.change, changePct: s.changePct, bid: s.bid, ask: s.ask, asOf: s.asOf, provider: s.provider, status: s.status, priceSession: s.priceSession } : q;
     });
 
   const breadth = data.breadth;

@@ -34,7 +34,7 @@ export function marketState(e: UniverseEntry, at = new Date()): Quote["marketSta
   if (mins >= 13 * 60 + 30 && mins < 20 * 60) return "REGULAR";
   if (mins >= 8 * 60 && mins < 13 * 60 + 30) return "PRE";
   if (mins >= 20 * 60 && mins < 24 * 60) return "POST";
-  return "CLOSED";
+  return "OVERNIGHT"; // weekday 00:00–08:00 UTC — the broker 24h-market window
 }
 
 /** Daily close for a symbol on a given UTC day index (days since epoch).
@@ -113,7 +113,7 @@ export function getQuote(symbol: string, at = new Date()): Quote {
   const dayIdx = Math.floor(at.getTime() / DAY_MS);
   const state = marketState(e, at);
   const anchor = dailyClose(symbol, dayIdx);
-  const live = state === "REGULAR" || state === "ALWAYS" || state === "PRE" || state === "POST";
+  const live = state === "REGULAR" || state === "ALWAYS" || state === "PRE" || state === "POST" || state === "OVERNIGHT";
   const price = live ? anchor * intradayFactor(symbol, at.getTime()) : anchor;
   const prevClose = dailyClose(symbol, dayIdx - 1);
   const rng = seededRng(`${symbol}:q:${dayIdx}`);

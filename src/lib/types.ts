@@ -45,7 +45,8 @@ export interface Quote extends Provenance {
   avgVolume: number;
   week52High: number;
   week52Low: number;
-  marketState: "REGULAR" | "PRE" | "POST" | "CLOSED" | "ALWAYS"; // ALWAYS = crypto/FX
+  marketState: "REGULAR" | "PRE" | "POST" | "CLOSED" | "ALWAYS" | "OVERNIGHT"; // ALWAYS = crypto/FX
+  priceSession?: "REGULAR" | "EXTENDED"; // which venue the displayed price came from (Robinhood quotes)
 }
 
 export interface Bar {

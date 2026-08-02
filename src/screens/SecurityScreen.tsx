@@ -9,10 +9,12 @@ import {
 } from "@/components/ui";
 import { dirClass, dirGlyph, fmtCompact, fmtNum, fmtPct, fmtPrice, fmtRelative } from "@/lib/format";
 import type { Bar, Filing, FinancialPeriod, Fundamentals, InstrumentInfo, PriceBook, PriceBookLevel, Quote } from "@/lib/types";
+import ChartScreen from "./ChartScreen";
 
-type TabId = "overview" | "financials" | "earnings" | "book" | "filings";
+type TabId = "overview" | "chart" | "financials" | "earnings" | "book" | "filings";
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "OVERVIEW" },
+  { id: "chart", label: "CHART" },
   { id: "financials", label: "FINANCIALS" },
   { id: "earnings", label: "EARNINGS" },
   { id: "book", label: "BOOK" },
@@ -136,6 +138,14 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
             {dirGlyph(q.changePct)} {fmtPrice(Math.abs(q.change), "")} ({fmtPct(q.changePct)})
           </span>
           <span className="border border-nx-border px-1 py-px text-[9px] uppercase tracking-wider text-nx-cyan">{q.marketState}</span>
+          {q.priceSession === "EXTENDED" && (
+            <span
+              className="border border-nx-amber/50 px-1 py-px text-[9px] uppercase tracking-wider text-nx-amber"
+              title="Price is from the extended-hours / overnight venue, not the regular session"
+            >
+              Ext hrs
+            </span>
+          )}
           <span className="ml-auto flex items-center gap-2">
             <Sparkline values={closes} width={120} height={22} up={trendUp} />
             <ProvenanceBadge prov={q} />
@@ -158,7 +168,8 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className={`min-h-0 flex-1 ${tab === "chart" ? "overflow-hidden" : "overflow-auto"}`}>
+        {tab === "chart" && <ChartScreen symbol={sym} />}
         {tab === "overview" && (
           <div className="grid grid-cols-1 gap-px bg-nx-border xl:grid-cols-2">
             <div className="bg-nx-panel">

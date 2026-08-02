@@ -194,13 +194,13 @@ function realIndexBars(raw: RhBar[]): Bar[] {
   return raw.filter((b) => !b.interpolated).map(toBar).filter((b) => b.open !== 0 || b.high !== 0 || b.low !== 0 || b.close !== 0);
 }
 
-/** Freshest of the regular / non-regular last trade prices. */
-function freshestPrice(q: RhEquityQuote): { price: number; at: string } {
+/** Freshest of the regular / non-regular last trade prices, and which venue it came from. */
+function freshestPrice(q: RhEquityQuote): { price: number; at: string; session: "REGULAR" | "EXTENDED" } {
   const reg = { price: num(q.last_trade_price), at: q.venue_last_trade_time ?? "" };
   const nonReg = { price: num(q.last_non_reg_trade_price), at: q.venue_last_non_reg_trade_time ?? "" };
-  if (reg.price > 0 && reg.at >= nonReg.at) return reg;
-  if (nonReg.price > 0) return nonReg;
-  return reg.price > 0 ? reg : { price: 0, at: new Date().toISOString() };
+  if (reg.price > 0 && reg.at >= nonReg.at) return { ...reg, session: "REGULAR" };
+  if (nonReg.price > 0) return { ...nonReg, session: "EXTENDED" };
+  return reg.price > 0 ? { ...reg, session: "REGULAR" } : { price: 0, at: new Date().toISOString(), session: "REGULAR" };
 }
 
 // ── Equity fundamentals (day OHLC, volume, averages, 52wk, valuation) ──
@@ -261,7 +261,7 @@ async function equityFundamentals(call: ToolCall, symbols: string[]): Promise<Ma
 }
 
 function mapEquityQuote(q: RhEquityQuote, fund: RhFundamentals | null): Quote {
-  const { price, at } = freshestPrice(q);
+  const { price, at, session } = freshestPrice(q);
   const prevClose = num(q.previous_close);
   return {
     provider: "robinhood",
@@ -269,6 +269,7 @@ function mapEquityQuote(q: RhEquityQuote, fund: RhFundamentals | null): Quote {
     asOf: at || new Date().toISOString(),
     symbol: q.symbol ?? "",
     price,
+    priceSession: session,
     change: price - prevClose,
     changePct: prevClose > 0 ? (price - prevClose) / prevClose : 0,
     bid: num(q.bid_price),
@@ -361,8 +362,23 @@ function aggregate(bars: Bar[], n: number): Bar[] {
 export async function getBars(symbol: string, interval: BarInterval, days: number): Promise<Bar[]> {
   return withSession(async (call) => {
     const start = new Date(Date.now() - days * 86_400_000).toISOString();
-    const p = await call("get_equity_historicals", { symbols: [symbol], start_time: start, interval: INTERVAL_MAP[interval] });
-    const raw = ((p?.data as Record<string, unknown>)?.results as { bars?: RhBar[] }[] | undefined)?.[0]?.bars ?? [];
+    // 24_5 includes overnight + pre/post sessions; fall back to extended, then regular.
+    let raw: RhBar[] = [];
+    let lastErr: unknown = null;
+    for (const bounds of ["24_5", "extended", undefined] as const) {
+      try {
+        const p = await call("get_equity_historicals", {
+          symbols: [symbol], start_time: start, interval: INTERVAL_MAP[interval],
+          ...(bounds ? { bounds } : {}),
+        });
+        raw = ((p?.data as Record<string, unknown>)?.results as { bars?: RhBar[] }[] | undefined)?.[0]?.bars ?? [];
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (lastErr) throw lastErr;
     if (raw.length === 0) throw new ProviderError(`Robinhood: no bars for ${symbol}`, "not_found");
     const bars = nonZeroBars(raw);
     return interval === "15m" ? aggregate(bars, 3) : bars;

@@ -53,8 +53,10 @@ export function cached<T>(key: string, ttlMs: number, fn: () => T): T {
 export async function cachedAsync<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value as T;
-  const value = await fn();
+  const value = fn();
   cache.set(key, { value, expires: Date.now() + ttlMs });
+  // Don't let a transient provider failure poison the cache for the full TTL.
+  value.catch(() => cache.delete(key));
   return value;
 }
 const QUOTE_TTL = Number(process.env.NEXUS_QUOTE_CACHE_MS ?? 5_000);
