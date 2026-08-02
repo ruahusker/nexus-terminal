@@ -385,55 +385,74 @@ export const facade = {
       if (!u) throw new ProviderError(`Unknown symbol: ${symbol}`, "not_found");
       return cached(`fund:${symbol}`, 300_000, () => demo.getFundamentals(symbol));
     }
-    return cachedAsync(`fund:${symbol}`, 900_000, async () => {
+    // Manual cache: the TTL depends on whether the Yahoo gap-fill landed
+    // (short TTL so the next load picks it up, long when fully merged).
+    const key = `fund:${symbol}`;
+    const hit = cache.get(key);
+    if (hit && hit.expires > Date.now()) return hit.value as Fundamentals;
+    const finish = (f: Fundamentals): Fundamentals => {
+      if (u) {
+        f.profile.sector ||= u.sector ?? "";
+        f.profile.industry ||= u.industry ?? "";
+      }
+      f.related = relatedPeers(symbol);
+      return f;
+    };
+    const compute = async (): Promise<{ value: Fundamentals; ttl: number }> => {
       if (robinhood.isConfigured()) {
         // Robinhood is authoritative; Yahoo fills the sections the MCP does
         // not publish (balance sheet, cash flow, analyst targets, profile
-        // metadata). Both run in parallel; either may fail independently.
-        const [rh, yf] = await Promise.all([
-          robinhood.getFundamentals(symbol).catch(() => null),
-          getYahooFundamentals(symbol).catch(() => null),
-        ]);
-        if (rh && yf) {
-          rh.provider = "robinhood+yahoo";
-          if (rh.incomeStatement.length === 0) rh.incomeStatement = yf.incomeStatement;
-          rh.balanceSheet = yf.balanceSheet;
-          rh.cashFlow = yf.cashFlow;
-          rh.analystEstimates = yf.analystEstimates;
-          if (rh.earningsCalendar.length === 0) rh.earningsCalendar = yf.earningsCalendar;
-          rh.profile = { ...yf.profile, description: rh.profile.description || yf.profile.description };
-        }
-        const merged = rh ?? yf;
-        if (merged) {
-          if (u) {
-            merged.profile.sector ||= u.sector ?? "";
-            merged.profile.industry ||= u.industry ?? "";
+        // metadata). Yahoo starts immediately but is given a 6s budget —
+        // its crumb gate can stall 15-20s and must not hold the panel hostage.
+        const yfPromise = getYahooFundamentals(symbol).catch(() => null);
+        const rh = await robinhood.getFundamentals(symbol).catch(() => null);
+        if (rh) {
+          const yf = await Promise.race([
+            yfPromise,
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 6_000)),
+          ]);
+          if (yf) {
+            rh.provider = "robinhood+yahoo";
+            if (rh.incomeStatement.length === 0) rh.incomeStatement = yf.incomeStatement;
+            rh.balanceSheet = yf.balanceSheet;
+            rh.cashFlow = yf.cashFlow;
+            rh.analystEstimates = yf.analystEstimates;
+            if (rh.earningsCalendar.length === 0) rh.earningsCalendar = yf.earningsCalendar;
+            rh.profile = { ...yf.profile, description: rh.profile.description || yf.profile.description };
           }
-          merged.related = relatedPeers(symbol);
-          return merged;
+          return { value: finish(rh), ttl: yf ? 900_000 : 60_000 };
         }
-        // Both failed — labeled fallback below.
+        // Robinhood can't serve this symbol (e.g. delisted) — Yahoo is the
+        // only real source, so wait for it in full.
+        const yf = await yfPromise;
+        if (yf) return { value: finish(yf), ttl: 900_000 };
       } else {
         try {
           const f = await getYahooFundamentals(symbol);
-          f.related = relatedPeers(symbol);
-          return f;
+          return { value: finish(f), ttl: 900_000 };
         } catch {
           // labeled fallback below
         }
       }
-      if (u) return demo.getFundamentals(symbol); // labeled SAMPLE fallback
+      if (u) return { value: demo.getFundamentals(symbol), ttl: 300_000 }; // labeled SAMPLE fallback
       // Outside the demo universe and the provider can't serve it: return an
       // explicit empty payload, never invented numbers.
       return {
-        provider: "none", status: "DELAYED", asOf: new Date().toISOString(), symbol,
-        profile: {
-          description: `${symbol} is outside the built-in universe and the data provider returned no fundamentals. Price, chart, news, and filings may still be live.`,
-          sector: "—", industry: "—", employees: 0, headquarters: "—", founded: 0, website: "",
+        ttl: 60_000,
+        value: {
+          provider: "none", status: "DELAYED", asOf: new Date().toISOString(), symbol,
+          profile: {
+            description: `${symbol} is outside the built-in universe and the data provider returned no fundamentals. Price, chart, news, and filings may still be live.`,
+            sector: "—", industry: "—", employees: 0, headquarters: "—", founded: 0, website: "",
+          },
+          incomeStatement: [], balanceSheet: [], cashFlow: [],
+          earningsCalendar: [], analystEstimates: null, related: [],
         },
-        incomeStatement: [], balanceSheet: [], cashFlow: [],
-        earningsCalendar: [], analystEstimates: null, related: [],
-      } satisfies Fundamentals;
+      };
+    };
+    return compute().then(({ value, ttl }) => {
+      cache.set(key, { value, expires: Date.now() + ttl });
+      return value;
     });
   },
 

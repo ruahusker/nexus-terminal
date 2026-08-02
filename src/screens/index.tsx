@@ -14,6 +14,7 @@ import NewsScreen from "./NewsScreen";
 import ScreenerScreen from "./ScreenerScreen";
 import EconomyScreen from "./EconomyScreen";
 import AlertsScreen from "./AlertsScreen";
+import AssistantScreen from "./AssistantScreen";
 import HelpScreen from "./HelpScreen";
 
 export interface ScreenProps {
@@ -31,6 +32,7 @@ export const SCREENS: Record<ScreenId, ComponentType<ScreenProps>> = {
   screener: ScreenerScreen,
   economy: EconomyScreen,
   alerts: AlertsScreen,
+  assistant: AssistantScreen,
   help: HelpScreen,
 };
 
@@ -45,6 +47,7 @@ const TITLES: Record<ScreenId, string> = {
   screener: "SCREENER",
   economy: "ECONOMY",
   alerts: "ALERTS",
+  assistant: "AI",
   help: "HELP",
 };
 

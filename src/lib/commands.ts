@@ -2,7 +2,7 @@
 
 export type ScreenId =
   | "markets" | "security" | "chart" | "options" | "portfolio" | "watchlist"
-  | "news" | "screener" | "economy" | "alerts" | "help";
+  | "news" | "screener" | "economy" | "alerts" | "assistant" | "help";
 
 export interface CommandDef {
   verb: string;
@@ -26,6 +26,7 @@ export const COMMANDS: CommandDef[] = [
   { verb: "CRYPTO", aliases: ["XBT"], takesSymbol: true, screen: "security", usage: "CRYPTO <SYM>", description: "Crypto asset overview (e.g. CRYPTO BTC)" },
   { verb: "SCREENER", aliases: ["SCR", "EQS"], takesSymbol: false, screen: "screener", usage: "SCREENER", description: "Equity screener with saved screens" },
   { verb: "ALERTS", aliases: ["ALRT"], takesSymbol: false, screen: "alerts", usage: "ALERTS", description: "Price, volume, and event alerts" },
+  { verb: "AI", aliases: ["ASK"], takesSymbol: false, screen: "assistant", usage: "AI", description: "Ask questions in plain English — the assistant queries terminal data for you" },
   { verb: "HELP", aliases: ["H", "?"], takesSymbol: false, screen: "help", usage: "HELP", description: "Command reference and keyboard shortcuts" },
 ];
 

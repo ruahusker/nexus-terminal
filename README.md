@@ -63,6 +63,7 @@ Press <kbd>`</kbd> (backtick) or <kbd>Ctrl+K</kbd> anywhere to focus the bar. Ty
 | `CRYPTO BTC` | Crypto overview |
 | `SCREENER` | Equity screener |
 | `ALERTS` | Alert manager |
+| `AI` | AI assistant — ask in plain English, it queries terminal data for you |
 | `HELP` | Searchable command + shortcut reference |
 
 Shortcuts: <kbd>↑</kbd>/<kbd>↓</kbd> autocomplete & history · <kbd>Enter</kbd> execute · <kbd>Esc</kbd> clear/close · <kbd>Ctrl+1…6</kbd> focus panel · <kbd>Alt+X</kbd> close tab · <kbd>Alt+M</kbd> maximize · <kbd>Alt+→</kbd>/<kbd>Alt+↓</kbd> split panel.
@@ -144,6 +145,10 @@ USD,DEPOSIT,5000,0,2024-01-01,0,funding
 - News and filings in demo mode are generated sample text and are labeled as such everywhere; nothing is fabricated to look real.
 - Analyst estimates, fundamentals, and probability figures (e.g. probability of profit) are model/sample estimates with visible caveats — never presented as guarantees.
 - NEXUS is research/tracking software only. It does not connect to brokerages and cannot place trades.
+
+## AI assistant
+
+The `AI` screen (Kimi-backed) answers plain-English questions by calling the terminal's own data tools — quotes, bars, screener, fundamentals, options chains, news — through a server-side agent loop, and shows the tool trace under each answer. Examples: "stocks with a high PE that pulled back 15%+ from their 52-week high", "how far is BTC from its 200-day moving average?". Requires `KIMI_API_KEY` (platform key from platform.moonshot.cn; the kimi CLI's own credential does not work for direct API calls). Without a key the screen explains the setup. The assistant is read-only — it cannot place trades.
 
 ## Environment
 
