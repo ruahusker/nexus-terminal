@@ -9,21 +9,29 @@ import { apiPath } from "@/lib/basePath";
 import { fmtRelative } from "@/lib/format";
 import type { MarketOverview, NewsItem } from "@/lib/types";
 
-/** Rotating latest-headline strip above the status bar; click opens NEWS. */
+/** Rotating latest-headline strip above the status bar; click opens NEWS.
+ *  Rotates every 10s and pauses while hovered so it stays readable. */
 function NewsCrawl() {
   const { open } = useTerminal();
   const { data } = useApi<NewsItem[]>("/api/news?limit=12", 300_000);
   const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
-    const t = setInterval(() => setIdx((i) => i + 1), 6_000);
+    if (paused) return;
+    const t = setInterval(() => setIdx((i) => i + 1), 10_000);
     return () => clearInterval(t);
-  }, []);
+  }, [paused]);
   if (!data || data.length === 0) return null;
   const item = data[idx % data.length];
   if (!item) return null;
   return (
     <button
       onClick={() => open("news")}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      title={item.headline}
       aria-label={`Latest headline: ${item.headline} — open news`}
       className="flex h-5 w-full items-center gap-2 overflow-hidden border-t border-nx-border bg-nx-inset px-2 text-left text-[10px]"
     >
@@ -31,6 +39,7 @@ function NewsCrawl() {
       <span className="shrink-0 tabular-nums text-nx-faint">{fmtRelative(item.publishedAt)}</span>
       <span className="shrink-0 text-nx-muted">{item.source}</span>
       <span className="truncate text-nx-text [font-family:var(--font-sans)]">{item.headline}</span>
+      <span className="ml-auto shrink-0 text-nx-faint">{idx % data.length + 1}/{data.length}</span>
     </button>
   );
 }

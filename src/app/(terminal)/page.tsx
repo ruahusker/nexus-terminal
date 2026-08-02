@@ -7,7 +7,7 @@ import { WorkspaceView } from "@/components/WorkspaceView";
 import { StatusBar } from "@/components/StatusBar";
 
 const ZOOM_KEY = "nexus-zoom";
-const DEFAULT_ZOOM = 1.15;
+const DEFAULT_ZOOM = 1.3;
 
 export default function Home() {
   // The workspace layout uses generated ids (Date.now()-based) and restores
@@ -34,9 +34,13 @@ export default function Home() {
 
   return (
     <TerminalProvider>
-      <div className="flex h-dvh flex-col overflow-hidden" style={{ zoom }}>
+      <div className="flex h-dvh flex-col overflow-hidden">
         <CommandBar />
-        <main className="min-h-0 flex-1">{mounted && <WorkspaceView />}</main>
+        {/* Zoom applies to the workspace only — command bar, news crawl, and
+            status bar stay pinned to the viewport edges at every zoom level. */}
+        <main className="min-h-0 flex-1" style={{ zoom }}>
+          {mounted && <WorkspaceView />}
+        </main>
         <StatusBar zoom={zoom} onZoom={changeZoom} />
       </div>
     </TerminalProvider>
