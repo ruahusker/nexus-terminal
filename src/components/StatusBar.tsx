@@ -33,12 +33,12 @@ function NewsCrawl() {
       onBlur={() => setPaused(false)}
       title={item.headline}
       aria-label={`Latest headline: ${item.headline} — open news`}
-      className="flex h-6 w-full items-center gap-2 overflow-hidden border-t border-nx-border bg-nx-inset px-2 text-left text-[12px]"
+      className="flex h-6 w-full items-center gap-2 overflow-hidden border-t-2 border-nx-amber/60 bg-nx-amber/10 px-2 text-left text-[12px]"
     >
-      <span className="shrink-0 font-semibold text-nx-amber">NEWS</span>
+      <span className="shrink-0 border border-nx-amber/60 bg-nx-amber/20 px-1 font-bold tracking-wider text-nx-amber">NEWS</span>
       <span className="shrink-0 tabular-nums text-nx-faint">{fmtRelative(item.publishedAt)}</span>
       <span className="shrink-0 text-nx-muted">{item.source}</span>
-      <span className="truncate text-nx-text [font-family:var(--font-sans)]">{item.headline}</span>
+      <span className="truncate font-semibold text-nx-text-bright [font-family:var(--font-sans)]">{item.headline}</span>
       <span className="ml-auto shrink-0 text-nx-faint">{idx % data.length + 1}/{data.length}</span>
     </button>
   );

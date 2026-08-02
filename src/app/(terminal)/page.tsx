@@ -8,7 +8,7 @@ import { StatusBar } from "@/components/StatusBar";
 import { BreakingBanner } from "@/components/BreakingBanner";
 
 const ZOOM_KEY = "nexus-zoom";
-const DEFAULT_ZOOM = 1.3;
+const DEFAULT_ZOOM = 1.2;
 
 export default function Home() {
   // The workspace layout uses generated ids (Date.now()-based) and restores
