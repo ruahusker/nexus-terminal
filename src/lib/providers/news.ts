@@ -51,6 +51,7 @@ function decodeEntities(s: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&"); // &amp; last so we don't double-decode
 }
 
