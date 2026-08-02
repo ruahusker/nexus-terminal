@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+/* ─── NEXUS design system ───────────────────────────────────────────────────
+   Original terminal aesthetic: near-black canvas, amber primary accent,
+   dense data, thin rules, zero decoration. */
+
+@theme {
+  --color-nx-bg: #0a0a0b;
+  --color-nx-panel: #101012;
+  --color-nx-panel-2: #141416;
+  --color-nx-inset: #0c0c0e;
+  --color-nx-border: #232326;
+  --color-nx-border-strong: #34343a;
+
+  --color-nx-text: #d4d4d8;
+  --color-nx-text-bright: #f4f4f5;
+  --color-nx-muted: #71717a;
+  --color-nx-faint: #52525b;
+
+  --color-nx-amber: #f5a524;
+  --color-nx-amber-dim: #b87a1a;
+  --color-nx-up: #22c55e;
+  --color-nx-down: #ef4444;
+  --color-nx-cyan: #22d3ee;
+  --color-nx-blue: #60a5fa;
+  --color-nx-purple: #c084fc;
+  --color-nx-warn: #facc15;
+
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-nx-bg);
+  color: var(--color-nx-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overscroll-behavior: none;
+}
+
+/* Focus visibility — keyboard-first product */
+:focus-visible {
+  outline: 1px solid var(--color-nx-amber);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: rgba(245, 165, 36, 0.25);
+}
+
+/* Thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-nx-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-nx-border-strong);
+  border-radius: 0;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Dense data table defaults */
+.nx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.nx-table th {
+  text-align: right;
+  font-weight: 500;
+  color: var(--color-nx-muted);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--color-nx-border-strong);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--color-nx-panel);
+  z-index: 1;
+  user-select: none;
+}
+.nx-table th:first-child,
+.nx-table td:first-child {
+  text-align: left;
+}
+.nx-table td {
+  text-align: right;
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--color-nx-border);
+  white-space: nowrap;
+}
+.nx-table tbody tr {
+  cursor: default;
+}
+.nx-table tbody tr:hover {
+  background: var(--color-nx-panel-2);
+}
+.nx-table tbody tr:focus-visible,
+.nx-table tbody tr[aria-selected="true"] {
+  background: rgba(245, 165, 36, 0.08);
+  outline: none;
+}
+
+/* Key-value stat grid used across screens */
+.nx-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 12px;
+  font-variant-numeric: tabular-nums;
+}
+.nx-kv dt {
+  color: var(--color-nx-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  padding: 1.5px 0;
+}
+.nx-kv dd {
+  text-align: right;
+  padding: 1.5px 0;
+  color: var(--color-nx-text);
+}
+
+/* Blink animation for streaming price flashes */
+@keyframes nx-flash-up {
+  0% { background: rgba(34, 197, 94, 0.28); }
+  100% { background: transparent; }
+}
+@keyframes nx-flash-down {
+  0% { background: rgba(239, 68, 68, 0.28); }
+  100% { background: transparent; }
+}
+.nx-flash-up { animation: nx-flash-up 0.6s ease-out; }
+.nx-flash-down { animation: nx-flash-down 0.6s ease-out; }
+
+/* Panel resize handles (react-resizable-panels) */
+.nx-resize-handle {
+  background: var(--color-nx-border);
+  transition: background 0.15s;
+}
+.nx-resize-handle[data-resize-handle-state="hover"],
+.nx-resize-handle[data-resize-handle-state="drag"] {
+  background: var(--color-nx-amber-dim);
+}
+
+/* Panel tab strip */
+.nx-tab {
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--color-nx-muted);
+  border-right: 1px solid var(--color-nx-border);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.nx-tab:hover { color: var(--color-nx-text); background: var(--color-nx-panel-2); }
+.nx-tab[data-active="true"] {
+  color: var(--color-nx-amber);
+  background: var(--color-nx-panel-2);
+  box-shadow: inset 0 1px 0 var(--color-nx-amber);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-flash-up, .nx-flash-down { animation: none; }
+}

@@ -1,0 +1,235 @@
+// NEXUS Terminal — normalized schema
+// Market data (quotes/bars/options) is served by provider adapters; the DB
+// persists the instrument registry plus all user-owned data.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Accounts ───────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime  @default(now())
+
+  sessions  Session[]
+  drawings  Drawing[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique // sha256 of the bearer token — raw token never stored
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Chart drawings (per user, per symbol) ──────────────────────────────────
+
+model Drawing {
+  id        String   @id @default(cuid())
+  userId    String
+  symbol    String
+  tool      String // TRENDLINE | RAY | HLINE | RECT | FIB
+  points    String // JSON: [{ time: unixSec, price: number }, ...]
+  color     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, symbol])
+}
+
+// ─── Instrument registry ────────────────────────────────────────────────────
+
+model Instrument {
+  symbol      String   @id
+  name        String
+  assetClass  String // STOCK | ETF | INDEX | CRYPTO | FX | BOND | FUTURE
+  exchange    String
+  currency    String  @default("USD")
+  sector      String?
+  industry    String?
+  country     String  @default("US")
+  basePrice   Float // demo anchor price; providers ignore this
+  marketCap   Float?
+  sharesOut   Float?
+  dividendYld Float?
+  peRatio     Float?
+  beta        Float?
+  description String?
+  optionable  Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([assetClass])
+  @@index([sector])
+  @@index([name])
+}
+
+// Optional server-side cache of provider quotes (populated in provider mode)
+model QuoteSnapshot {
+  symbol    String
+  price     Float
+  bid       Float?
+  ask       Float?
+  open      Float?
+  high      Float?
+  low       Float?
+  prevClose Float?
+  volume    Float?
+  provider  String
+  status    String // REALTIME | DELAYED | CACHED | SAMPLE
+  asOf      DateTime
+
+  @@id([symbol, asOf])
+  @@index([symbol])
+}
+
+// ─── Portfolios ─────────────────────────────────────────────────────────────
+
+model Portfolio {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
+  cash      Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions    Position[]
+  transactions Transaction[]
+}
+
+model Position {
+  id           String   @id @default(cuid())
+  portfolioId  String
+  symbol       String
+  assetClass   String // STOCK | ETF | CRYPTO | OPTION
+  quantity     Float
+  avgCost      Float
+  openedAt     DateTime @default(now())
+  // option metadata (null for equity/crypto)
+  optionType   String? // CALL | PUT
+  strike       Float?
+  expiry       String?
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, symbol, optionType, strike, expiry])
+  @@index([portfolioId])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  portfolioId String
+  symbol      String
+  side        String // BUY | SELL | DIVIDEND | PREMIUM | DEPOSIT | WITHDRAWAL
+  quantity    Float
+  price       Float
+  fees        Float    @default(0)
+  executedAt  DateTime @default(now())
+  note        String?
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId])
+  @@index([symbol])
+}
+
+// ─── Watchlists ─────────────────────────────────────────────────────────────
+
+model Watchlist {
+  id        String           @id @default(cuid())
+  userId    String?
+  name      String
+  createdAt DateTime         @default(now())
+  items     WatchlistItem[]
+}
+
+model WatchlistItem {
+  id          String @id @default(cuid())
+  watchlistId String
+  symbol      String
+  position    Int    @default(0)
+  addedAt     DateTime @default(now())
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, symbol])
+}
+
+// ─── Alerts ─────────────────────────────────────────────────────────────────
+
+model Alert {
+  id         String       @id @default(cuid())
+  userId    String?
+  symbol     String
+  kind       String // PRICE_ABOVE | PRICE_BELOW | PCT_MOVE | VOLUME_SPIKE | IV_CHANGE | EARNINGS | DIVIDEND | NEWS
+  threshold  Float?
+  note       String?
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  events     AlertEvent[]
+}
+
+model AlertEvent {
+  id          String   @id @default(cuid())
+  alertId     String
+  message     String
+  triggeredAt DateTime @default(now())
+  value       Float?
+
+  alert Alert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([alertId])
+}
+
+// ─── Workspace & saved user state ───────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  userId    String?  @unique
+  layout    String // JSON layout tree
+  updatedAt DateTime @updatedAt
+}
+
+model SavedScreen {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
+  criteria  String // JSON filter set
+  createdAt DateTime @default(now())
+}
+
+model SavedArticle {
+  id        String   @id @default(cuid())
+  userId    String?
+  articleId String // provider article id
+  title     String
+  source    String
+  url       String
+  symbol    String?
+  savedAt   DateTime @default(now())
+
+  @@unique([userId, articleId])
+}
+
+model ChartLayout {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
+  symbol    String
+  settings  String // JSON: chart type, indicators, timeframe, comparisons
+  createdAt DateTime @default(now())
+}

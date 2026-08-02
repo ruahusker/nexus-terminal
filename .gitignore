@@ -1,0 +1,14 @@
+node_modules/
+.next/
+*.db
+*.db-journal
+.env
+.env.local
+playwright-report/
+test-results/
+next-env.d.ts
+prisma/migrations/
+e2e/.auth-state.json
+.next-e2e/
+logs/
+tsconfig.tsbuildinfo

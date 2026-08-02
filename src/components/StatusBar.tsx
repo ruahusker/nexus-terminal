@@ -1,0 +1,107 @@
+"use client";
+
+// Bottom status bar: data mode, market status, clock, toast notifications.
+
+import { useEffect, useState } from "react";
+import { useTerminal } from "./TerminalContext";
+import { useApi } from "./ui";
+import { apiPath } from "@/lib/basePath";
+import type { MarketOverview } from "@/lib/types";
+
+function Clock() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="tabular-nums text-nx-muted" suppressHydrationWarning>
+      {now ? now.toLocaleTimeString("en-US", { hour12: false }) : "--:--:--"} local
+    </span>
+  );
+}
+
+export function StatusBar({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => void }) {
+  const { toasts, dismissToast } = useTerminal();
+  const { data } = useApi<MarketOverview>("/api/markets", 30_000);
+  const { data: me } = useApi<{ user: { username: string } | null }>("/api/auth/me");
+  const us = data?.marketStatus.us ?? "—";
+  const statusColor = us === "REGULAR" ? "text-nx-up" : us === "PRE" || us === "POST" ? "text-nx-warn" : "text-nx-muted";
+
+  const logout = async () => {
+    try {
+      await fetch(apiPath("/api/auth/logout"), { method: "POST" });
+    } finally {
+      window.location.href = apiPath("/login");
+    }
+  };
+
+  return (
+    <>
+      {/* Toast stack */}
+      <div className="pointer-events-none fixed bottom-8 right-2 z-50 flex w-80 flex-col gap-1" role="status" aria-live="polite">
+        {toasts.slice(-4).map((t) => (
+          <div key={t.id} className="pointer-events-auto flex items-start justify-between gap-2 border border-nx-amber/50 bg-nx-panel px-2 py-1.5 text-[11px] text-nx-text shadow-lg shadow-black/60">
+            <span>
+              <span className="mr-1 text-nx-amber">◆ ALERT</span>
+              {t.message}
+            </span>
+            <button onClick={() => dismissToast(t.id)} aria-label="Dismiss alert" className="text-nx-muted hover:text-nx-text">✕</button>
+          </div>
+        ))}
+      </div>
+
+      <footer className="flex h-6 items-center gap-4 border-t border-nx-border-strong bg-nx-panel px-2 text-[10px]" aria-label="Status bar">
+        <span className="font-bold tracking-wider text-nx-amber">NEXUS TERMINAL</span>
+        {(!data || data.status === "SAMPLE") ? (
+          <span className="text-nx-purple">DEMO · SAMPLE DATA</span>
+        ) : (
+          <span className="text-nx-up">LIVE · YAHOO/COINBASE/MASSIVE</span>
+        )}
+        <span className={statusColor}>US: {us}</span>
+        <span className="text-nx-up">CRYPTO: 24/7</span>
+        {data && (
+          <span className="hidden text-nx-muted md:inline">
+            VIX {data.volatility[0]?.value.toFixed(2)} · 10Y {data.treasuries.find((t) => t.tenor === "10Y")?.yield.toFixed(2)}%
+          </span>
+        )}
+        <span className="ml-auto" />
+        <span className="flex items-center gap-0.5" role="group" aria-label="Interface zoom">
+          <button
+            onClick={() => onZoom(zoom - 0.1)}
+            aria-label="Decrease text size"
+            title="Decrease text size"
+            className="px-1.5 text-nx-muted hover:text-nx-amber"
+          >
+            A−
+          </button>
+          <span className="w-9 text-center tabular-nums text-nx-faint" aria-live="polite">{Math.round(zoom * 100)}%</span>
+          <button
+            onClick={() => onZoom(zoom + 0.1)}
+            aria-label="Increase text size"
+            title="Increase text size"
+            className="px-1.5 text-nx-muted hover:text-nx-amber"
+          >
+            A+
+          </button>
+        </span>
+        <span className="hidden text-nx-faint lg:inline">` commands · Ctrl+1-6 panels · HELP for keys</span>
+        <Clock />
+        {me?.user && (
+          <span className="flex items-center gap-1 border-l border-nx-border pl-2">
+            <span className="text-nx-cyan">{me.user.username}</span>
+            <button
+              onClick={() => void logout()}
+              aria-label="Sign out"
+              className="px-1 text-nx-muted hover:text-nx-amber"
+              title="Sign out"
+            >
+              ⏻
+            </button>
+          </span>
+        )}
+      </footer>
+    </>
+  );
+}
