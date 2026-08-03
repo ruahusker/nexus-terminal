@@ -305,15 +305,22 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
                     <tbody>
                       {f.earningsCalendar.map((e) => {
                         const isNext = nextEarnings?.date === e.date;
+                        const href = `https://finance.yahoo.com/quote/${encodeURIComponent(sym ?? "")}/earnings/`;
                         return (
-                          <tr key={e.date} className={isNext ? "bg-nx-panel-2" : undefined} aria-label={isNext ? `Next earnings ${e.date}` : undefined}>
+                          <tr
+                            key={e.date}
+                            className={`cursor-pointer hover:bg-nx-panel-2 ${isNext ? "bg-nx-panel-2" : ""}`}
+                            aria-label={isNext ? `Next earnings ${e.date}` : undefined}
+                            title={`Open ${sym} earnings on Yahoo Finance`}
+                            onClick={() => window.open(href, "_blank", "noopener")}
+                          >
                             <td className={`tabular-nums ${isNext ? "font-semibold text-nx-amber" : "text-nx-text"}`}>{e.date}</td>
                             <td className="tabular-nums text-right text-nx-text">{e.epsEstimate != null ? fmtNum(e.epsEstimate) : "—"}</td>
                             <td className="tabular-nums text-right text-nx-text-bright">{e.epsActual != null ? fmtNum(e.epsActual) : "—"}</td>
                             <td className={`tabular-nums text-right ${dirClass(e.surprise)}`}>
                               {e.surprise != null ? `${dirGlyph(e.surprise)} ${fmtPct(e.surprise, 1)}` : "—"}
                             </td>
-                            <td className="text-[9px] text-nx-amber">{isNext ? "NEXT" : ""}</td>
+                            <td className="text-[9px] text-nx-amber">{isNext ? "NEXT" : ""}<span className="ml-1 text-nx-faint">↗</span></td>
                           </tr>
                         );
                       })}
@@ -366,13 +373,18 @@ export default function SecurityScreen({ symbol }: { symbol?: string }) {
                     </thead>
                     <tbody>
                       {filings.data.map((fl) => (
-                        <tr key={fl.id}>
+                        <tr
+                          key={fl.id}
+                          className="cursor-pointer hover:bg-nx-panel-2"
+                          title={`Open filing: ${fl.title}`}
+                          onClick={() => window.open(fl.url, "_blank", "noopener")}
+                        >
                           <td className="font-semibold text-nx-amber">{fl.type}</td>
                           <td className="text-nx-text">{fl.title}</td>
                           <td className="tabular-nums text-right text-nx-muted" title={fl.filedAt}>{fmtRelative(fl.filedAt)}</td>
                           <td className="text-right">
-                            <a href={fl.url} target="_blank" rel="noreferrer" className="text-nx-cyan underline decoration-nx-border-strong hover:text-nx-text-bright" aria-label={`Open filing ${fl.type} for ${fl.symbol}`}>
-                              link
+                            <a href={fl.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-nx-cyan underline decoration-nx-border-strong hover:text-nx-text-bright" aria-label={`Open filing ${fl.type} for ${fl.symbol}`}>
+                              link ↗
                             </a>
                           </td>
                         </tr>

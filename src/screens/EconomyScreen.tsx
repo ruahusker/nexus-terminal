@@ -5,7 +5,6 @@
 
 import { useMemo, useState } from "react";
 import { EmptyState, ErrorState, Loading, ProvenanceBadge, SampleBanner, SectionTitle, useApi } from "@/components/ui";
-import { useTerminal } from "@/components/TerminalContext";
 import { dirClass, dirGlyph, fmtBps, fmtNum, fmtTime } from "@/lib/format";
 import type { EarningsEvent, EconEvent, EconSeries, MarketOverview } from "@/lib/types";
 
@@ -450,7 +449,6 @@ export default function EconomyScreen({ symbol: _symbol }: { symbol?: string }) 
 /** EARNINGS — market-wide earnings calendar, grouped by date.
  *  Defaults to 3 days (the 7-day MCP pull takes ~45s on first load). */
 function EarningsView() {
-  const { open } = useTerminal();
   const [days, setDays] = useState(3);
   const { data, error, loading, retry } = useApi<EarningsEvent[]>(`/api/earnings?days=${days}`, 300_000);
 
@@ -509,11 +507,12 @@ function EarningsView() {
                     <tr key={`${ev.symbol}-${i}`}>
                       <td>
                         <button
-                          onClick={() => open("security", ev.symbol)}
-                          aria-label={`Open ${ev.symbol}`}
+                          onClick={() => window.open(`https://finance.yahoo.com/quote/${encodeURIComponent(ev.symbol)}/earnings/`, "_blank", "noopener")}
+                          aria-label={`Open ${ev.symbol} earnings on Yahoo Finance`}
+                          title={`Open ${ev.symbol} earnings on Yahoo Finance`}
                           className="font-semibold text-nx-cyan hover:underline"
                         >
-                          {ev.symbol}
+                          {ev.symbol} ↗
                         </button>
                       </td>
                       <td className="text-nx-muted">{ev.timing === "am" ? "Before open" : ev.timing === "pm" ? "After close" : ev.timing || "—"}</td>
