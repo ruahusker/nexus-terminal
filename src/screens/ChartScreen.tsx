@@ -30,7 +30,7 @@ import { api } from "@/lib/client";
 import { dirClass, dirGlyph, fmtPct, fmtPrice } from "@/lib/format";
 import { bollinger, ema, macd, rsi, sma } from "@/lib/indicators";
 interface BarsResponse { bars: import("@/lib/types").Bar[]; provider: string; status: string; asOf: string }
-import type { Bar, Fundamentals } from "@/lib/types";
+import type { Bar, BarInterval, Fundamentals } from "@/lib/types";
 import {
   COMPARE_COLORS,
   RANGES,
@@ -185,7 +185,8 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const interval = intervalForRange(range);
+  const [intervalOverride, setIntervalOverride] = useState<BarInterval | null>(null);
+  const interval = intervalOverride ?? intervalForRange(range);
   const cmpKey = compare.join(",");
 
   const barsPath = `/api/bars?symbol=${encodeURIComponent(sym)}&interval=${interval}&range=${range}`;
@@ -825,10 +826,26 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
             <button
               key={r}
               aria-pressed={range === r}
-              onClick={() => setRange(r)}
+              onClick={() => {
+                setRange(r);
+                setIntervalOverride(null); // back to the sensible default for this range
+              }}
               className={`${BTN} ${range === r ? BTN_ON : BTN_OFF}`}
             >
               {r}
+            </button>
+          ))}
+        </div>
+        <span className="mx-1 h-3 w-px bg-nx-border-strong" aria-hidden />
+        <div className="flex gap-px" role="group" aria-label="Bar interval">
+          {(["1m", "5m", "15m", "1h", "1d", "1wk"] as BarInterval[]).map((iv) => (
+            <button
+              key={iv}
+              aria-pressed={interval === iv}
+              onClick={() => setIntervalOverride(iv)}
+              className={`${BTN} ${interval === iv ? BTN_ON : BTN_OFF}`}
+            >
+              {iv}
             </button>
           ))}
         </div>
