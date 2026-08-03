@@ -34,21 +34,21 @@ export function BreakingBanner() {
   return (
     <div
       role="alert"
-      className={`flex h-6 items-center gap-2 overflow-hidden border-b px-2 text-[11px] ${
+      className={`flex h-9 items-center gap-3 overflow-hidden border-b-2 px-3 text-[15px] ${
         shock
-          ? "border-nx-down/50 bg-nx-down/15 text-nx-down"
-          : "border-nx-amber/40 bg-nx-amber/10 text-nx-amber"
+          ? "border-nx-down/60 bg-nx-down/15 text-nx-down"
+          : "border-nx-amber/60 bg-nx-amber/15 text-nx-amber"
       }`}
     >
-      <span className={`shrink-0 animate-pulse font-bold tracking-wider ${shock ? "" : "text-nx-amber"}`}>
+      <span className={`shrink-0 animate-pulse text-[13px] font-bold tracking-widest ${shock ? "" : "text-nx-amber"}`}>
         ◆ {shock ? "BREAKING" : "JUST IN"}
       </span>
-      <span className="shrink-0 tabular-nums text-nx-faint">{fmtRelative(latest.publishedAt)}</span>
-      <span className="shrink-0 text-nx-muted">{latest.source}</span>
+      <span className="shrink-0 text-[11px] tabular-nums text-nx-faint">{fmtRelative(latest.publishedAt)}</span>
+      <span className="shrink-0 text-[11px] text-nx-muted">{latest.source}</span>
       <button
         onClick={() => open("news")}
         title={latest.headline}
-        className="min-w-0 flex-1 truncate text-left text-nx-text-bright hover:text-nx-amber [font-family:var(--font-sans)]"
+        className="min-w-0 flex-1 truncate text-left font-bold text-nx-text-bright hover:text-nx-amber [font-family:var(--font-sans)]"
       >
         {latest.headline}
       </button>
