@@ -33,13 +33,13 @@ function NewsCrawl() {
       onBlur={() => setPaused(false)}
       title={item.headline}
       aria-label={`Latest headline: ${item.headline} — open news`}
-      className="flex h-12 w-full items-center gap-3 overflow-hidden border-t-2 border-nx-amber/60 bg-nx-amber/10 px-3 text-left text-[20px]"
+      className="flex h-9 w-full items-center gap-2 overflow-hidden border-t-2 border-nx-amber/60 bg-nx-amber/10 px-2 text-left text-[16px]"
     >
-      <span className="shrink-0 border border-nx-amber/60 bg-nx-amber/20 px-1.5 text-[14px] font-bold tracking-wider text-nx-amber">NEWS</span>
-      <span className="shrink-0 text-[13px] tabular-nums text-nx-faint">{fmtRelative(item.publishedAt)}</span>
-      <span className="shrink-0 text-[13px] text-nx-muted">{item.source}</span>
+      <span className="shrink-0 border border-nx-amber/60 bg-nx-amber/20 px-1 text-[11px] font-bold tracking-wider text-nx-amber">NEWS</span>
+      <span className="shrink-0 text-[11px] tabular-nums text-nx-faint">{fmtRelative(item.publishedAt)}</span>
+      <span className="shrink-0 text-[11px] text-nx-muted">{item.source}</span>
       <span className="truncate font-semibold text-nx-text-bright [font-family:var(--font-sans)]">{item.headline}</span>
-      <span className="ml-auto shrink-0 text-[12px] text-nx-faint">{idx % data.length + 1}/{data.length}</span>
+      <span className="ml-auto shrink-0 text-[11px] text-nx-faint">{idx % data.length + 1}/{data.length}</span>
     </button>
   );
 }

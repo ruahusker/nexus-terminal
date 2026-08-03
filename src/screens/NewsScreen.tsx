@@ -334,7 +334,7 @@ export default function NewsScreen({ symbol }: { symbol?: string }) {
         )}
       </div>
       <div className="border-t border-nx-border px-2 py-0.5 text-[9px] text-nx-faint">
-        {hasSample ? "SAMPLE-tagged stories are generated demo text" : "Real headlines via RSS (Yahoo Finance / CNBC / MarketWatch)"} · Feed refreshes every 60s
+        {hasSample ? "SAMPLE-tagged stories are generated demo text" : "Real headlines via RSS (CNBC Markets / MarketWatch / Investing.com)"} · Feed refreshes every 60s
       </div>
     </div>
   );
