@@ -43,32 +43,22 @@ function SampleTag() {
 function StoryRow({
   item,
   saved,
-  expanded,
-  onToggle,
   onToggleSave,
   onOpenSym,
 }: {
   item: NewsItem;
   saved: boolean;
-  expanded: boolean;
-  onToggle: () => void;
   onToggleSave: () => void;
   onOpenSym: (s: string) => void;
 }) {
   return (
     <li className="border-b border-nx-border">
-      <div
-        tabIndex={0}
-        role="button"
-        aria-expanded={expanded}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        className="cursor-pointer px-2 py-1 hover:bg-nx-panel-2"
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Read: ${item.headline}`}
+        className="block cursor-pointer px-2 py-1 hover:bg-nx-panel-2"
       >
         <div className="flex items-baseline gap-2 text-[10px] text-nx-faint">
           <span className="shrink-0 tabular-nums">{fmtRelative(item.publishedAt)}</span>
@@ -79,6 +69,7 @@ function StoryRow({
           </span>
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               onToggleSave();
             }}
@@ -99,62 +90,20 @@ function StoryRow({
               <button
                 key={s}
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onOpenSym(s);
                 }}
                 aria-label={`Open ${s}`}
-                className="border border-nx-border px-1 text-[9px] font-semibold text-nx-cyan hover:border-nx-cyan/50"
+                className="border border-nx-border px-1 text-[9px] font-semibold text-nx-cyan hover:border-cyan-500/50"
               >
                 {s}
               </button>
             ))}
           </div>
         )}
-      </div>
-      {expanded && <ArticleView item={item} />}
+      </a>
     </li>
-  );
-}
-
-/** Inline reader: loads the clean article on expand; falls back to the RSS
- *  summary + external link when the source blocks extraction. */
-function ArticleView({ item }: { item: NewsItem }) {
-  const art = useApi<{ title: string; siteName: string; paragraphs: string[] }>(
-    `/api/article?url=${encodeURIComponent(item.url)}`,
-  );
-  return (
-    <div className="border-t border-nx-border/50 px-2 pb-2 pt-1" aria-label={`Article: ${item.headline}`}>
-      {art.loading && !art.data ? (
-        <div className="flex items-center gap-2 py-1 text-[11px] text-nx-muted">
-          <span className="inline-block h-3 w-3 animate-spin border border-nx-border-strong border-t-nx-amber" aria-hidden />
-          Loading article…
-        </div>
-      ) : art.data ? (
-        <div className="max-h-96 space-y-2 overflow-auto pr-1">
-          {art.data.paragraphs.map((p, i) => (
-            <p key={i} className="text-[12px] leading-relaxed text-nx-text [font-family:var(--font-sans)]">
-              {p}
-            </p>
-          ))}
-          <div className="pt-1 text-[10px] text-nx-faint">
-            {art.data.siteName} ·{" "}
-            <a href={item.url} target="_blank" rel="noreferrer" className="text-nx-cyan hover:underline">
-              open original ↗
-            </a>
-          </div>
-        </div>
-      ) : (
-        <div>
-          <p className="text-[11px] leading-relaxed text-nx-muted [font-family:var(--font-sans)]">{item.summary}</p>
-          <div className="pt-1 text-[10px] text-nx-faint">
-            Full text unavailable from this source in-app ·{" "}
-            <a href={item.url} target="_blank" rel="noreferrer" className="text-nx-cyan hover:underline">
-              read on {item.source} ↗
-            </a>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -165,7 +114,6 @@ export default function NewsScreen({ symbol }: { symbol?: string }) {
   const [topic, setTopic] = useState("");
   const [sym, setSym] = useState((symbol ?? "").toUpperCase());
   const [showSaved, setShowSaved] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [mutating, setMutating] = useState(false);
 
@@ -232,8 +180,6 @@ export default function NewsScreen({ symbol }: { symbol?: string }) {
       key={item.id}
       item={item}
       saved={savedIds.has(item.id)}
-      expanded={expanded.has(item.id)}
-      onToggle={() => setExpanded((s) => toggle(s, item.id))}
       onToggleSave={() => void toggleSave(item)}
       onOpenSym={openSym}
     />
