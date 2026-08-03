@@ -111,12 +111,50 @@ function StoryRow({
           </div>
         )}
       </div>
-      {expanded && (
-        <p className="px-2 pb-2 text-[11px] leading-relaxed text-nx-muted [font-family:var(--font-sans)]">
-          {item.summary}
-        </p>
-      )}
+      {expanded && <ArticleView item={item} />}
     </li>
+  );
+}
+
+/** Inline reader: loads the clean article on expand; falls back to the RSS
+ *  summary + external link when the source blocks extraction. */
+function ArticleView({ item }: { item: NewsItem }) {
+  const art = useApi<{ title: string; siteName: string; paragraphs: string[] }>(
+    `/api/article?url=${encodeURIComponent(item.url)}`,
+  );
+  return (
+    <div className="border-t border-nx-border/50 px-2 pb-2 pt-1" aria-label={`Article: ${item.headline}`}>
+      {art.loading && !art.data ? (
+        <div className="flex items-center gap-2 py-1 text-[11px] text-nx-muted">
+          <span className="inline-block h-3 w-3 animate-spin border border-nx-border-strong border-t-nx-amber" aria-hidden />
+          Loading article…
+        </div>
+      ) : art.data ? (
+        <div className="max-h-96 space-y-2 overflow-auto pr-1">
+          {art.data.paragraphs.map((p, i) => (
+            <p key={i} className="text-[12px] leading-relaxed text-nx-text [font-family:var(--font-sans)]">
+              {p}
+            </p>
+          ))}
+          <div className="pt-1 text-[10px] text-nx-faint">
+            {art.data.siteName} ·{" "}
+            <a href={item.url} target="_blank" rel="noreferrer" className="text-nx-cyan hover:underline">
+              open original ↗
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="text-[11px] leading-relaxed text-nx-muted [font-family:var(--font-sans)]">{item.summary}</p>
+          <div className="pt-1 text-[10px] text-nx-faint">
+            Full text unavailable from this source in-app ·{" "}
+            <a href={item.url} target="_blank" rel="noreferrer" className="text-nx-cyan hover:underline">
+              read on {item.source} ↗
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

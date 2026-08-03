@@ -26,6 +26,8 @@ const GENERAL_FEEDS: FeedDef[] = [
   { url: "https://www.cnbc.com/id/10000664/device/rss/rss.html", source: "CNBC Markets" },
   { url: "https://feeds.content.dowjones.io/public/rss/mw_marketpulse", source: "MarketWatch" },
   { url: "https://www.investing.com/rss/news_25.rss", source: "Investing.com" },
+  // Yahoo-hosted articles are server-rendered — the in-app reader can extract them
+  { url: "https://finance.yahoo.com/news/rssindex", source: "Yahoo Finance" },
 ];
 
 // ─── tiny RSS/Atom parser ────────────────────────────────────────────────────
