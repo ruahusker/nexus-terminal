@@ -150,6 +150,7 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawError, setDrawError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const prevStructRef = useRef("");
   const toolRef = useRef<ToolMode>("POINTER");
   const drawingsRef = useRef<Drawing[]>([]);
   const selectedIdRef = useRef<string | null>(null);
@@ -219,17 +220,31 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
   const barsPath = `/api/bars?symbol=${encodeURIComponent(sym)}&interval=${interval}&range=${range}`;
   const { data: barsResp, error, loading, retry } = useApi<BarsResponse>(barsPath, 300_000);
   const apiBars = barsResp?.bars ?? null;
-  // Live bars: API history plus the streaming tick folded into the forming bar.
-  const [liveBars, setLiveBars] = useState<Bar[] | null>(null);
-  useEffect(() => setLiveBars(apiBars), [apiBars]);
-  const bars = liveBars ?? apiBars;
+  const apiBarsRef = useRef<Bar[] | null>(null);
+  apiBarsRef.current = apiBars;
+  const bars = apiBars;
+
+  // Live tick: merge the stream into the forming bar only. Applied via
+  // series.update() (see effect below) so it never rebuilds the series or
+  // resets the user's zoom/pan — full renders only happen on structural
+  // changes or the 5-minute refetch.
+  const [tickBar, setTickBar] = useState<Bar | null>(null);
+  useEffect(() => setTickBar(null), [sym, interval, range]);
   useEffect(() => {
     const es = new EventSource(apiPath(`/api/stream?symbols=${encodeURIComponent(sym)}`));
     es.onmessage = (ev) => {
       try {
         const qs = JSON.parse(ev.data as string) as Quote[];
         const q = qs.find((x) => x.symbol === sym);
-        if (q) setLiveBars((prev) => (prev && prev.length > 0 ? mergeTick(prev, q, INTERVAL_SEC[interval]) : prev));
+        if (!q) return;
+        setTickBar((prev) => {
+          const base = apiBarsRef.current;
+          const apiLast = base?.[base.length - 1];
+          const tail = prev && apiLast ? (prev.time >= apiLast.time ? prev : apiLast) : prev ?? apiLast;
+          if (!tail) return null;
+          const merged = mergeTick([tail], q, INTERVAL_SEC[interval]);
+          return merged[merged.length - 1] ?? null;
+        });
       } catch { /* malformed tick */ }
     };
     return () => es.close();
@@ -581,7 +596,13 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
     });
 
     markersRef.current?.setMarkers(earningsMarkers(bars, earningsDates));
-    chart.timeScale().fitContent();
+    // Refetches (same symbol/interval/range) keep the user's zoom/pan;
+    // structural changes fit the new data.
+    const structKey = `${sym}|${interval}|${range}|${chartType}`;
+    const vr = prevStructRef.current === structKey ? chart.timeScale().getVisibleLogicalRange() : null;
+    if (vr) chart.timeScale().setVisibleLogicalRange(vr);
+    else chart.timeScale().fitContent();
+    prevStructRef.current = structKey;
     setLegend(null);
     redrawRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -590,6 +611,27 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
     cmp0.data?.bars, cmp1.data?.bars, cmp2.data?.bars, earningsDates,
     sym, interval, range, showRsi, showMacd, cmpKey,
   ]);
+
+  // Live tick: update just the forming bar — never setData, never fitContent,
+  // so the user's zoom/pan survives every stream update.
+  useEffect(() => {
+    if (!tickBar) return;
+    const t = toTs(tickBar.time);
+    if (chartType === "candles" || chartType === "bars") {
+      (mainRef.current as ISeriesApi<"Candlestick"> | null)?.update({
+        time: t, open: tickBar.open, high: tickBar.high, low: tickBar.low, close: tickBar.close,
+      });
+    } else {
+      (mainRef.current as ISeriesApi<"Line"> | null)?.update({ time: t, value: tickBar.close });
+    }
+    volRef.current?.update({
+      time: t,
+      value: tickBar.volume,
+      color: tickBar.close >= tickBar.open ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.45)",
+    });
+    redrawRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickBar, chartType]);
 
   // Overlay visibility + price-scale mode, applied without chart recreation.
   useEffect(() => {
