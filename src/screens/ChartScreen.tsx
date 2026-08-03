@@ -30,7 +30,34 @@ import { api } from "@/lib/client";
 import { dirClass, dirGlyph, fmtPct, fmtPrice } from "@/lib/format";
 import { bollinger, ema, macd, rsi, sma } from "@/lib/indicators";
 interface BarsResponse { bars: import("@/lib/types").Bar[]; provider: string; status: string; asOf: string }
-import type { Bar, BarInterval, Fundamentals } from "@/lib/types";
+import type { Bar, BarInterval, Fundamentals, Quote } from "@/lib/types";
+import { apiPath } from "@/lib/basePath";
+
+const INTERVAL_SEC: Record<BarInterval, number> = {
+  "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86_400, "1wk": 604_800,
+};
+
+/** Fold a live quote tick into the bar series: update the forming bar, or
+ *  roll a new one when the tick crosses an interval boundary. */
+function mergeTick(bars: Bar[], q: Quote, sec: number): Bar[] {
+  const last = bars[bars.length - 1];
+  if (!last || !(q.price > 0)) return bars;
+  // Weekly boundaries aren't unix-aligned — always update the forming bar.
+  const t = sec === 604_800 ? last.time : Math.floor(Math.floor(Date.now() / 1000) / sec) * sec;
+  if (t <= last.time) {
+    const upd: Bar = {
+      ...last,
+      close: q.price,
+      high: Math.max(last.high, q.price),
+      low: Math.min(last.low, q.price),
+      volume: sec === 86_400 && q.volume > 0 ? q.volume : last.volume,
+    };
+    return upd === last || (upd.close === last.close && upd.high === last.high && upd.low === last.low && upd.volume === last.volume)
+      ? bars
+      : [...bars.slice(0, -1), upd];
+  }
+  return [...bars, { time: t, open: last.close, high: Math.max(last.close, q.price), low: Math.min(last.close, q.price), close: q.price, volume: 0 }];
+}
 import {
   COMPARE_COLORS,
   RANGES,
@@ -190,8 +217,23 @@ export default function ChartScreen({ symbol = "SPY" }: { symbol?: string }) {
   const cmpKey = compare.join(",");
 
   const barsPath = `/api/bars?symbol=${encodeURIComponent(sym)}&interval=${interval}&range=${range}`;
-  const { data: barsResp, error, loading, retry } = useApi<BarsResponse>(barsPath);
-  const bars = barsResp?.bars ?? null;
+  const { data: barsResp, error, loading, retry } = useApi<BarsResponse>(barsPath, 300_000);
+  const apiBars = barsResp?.bars ?? null;
+  // Live bars: API history plus the streaming tick folded into the forming bar.
+  const [liveBars, setLiveBars] = useState<Bar[] | null>(null);
+  useEffect(() => setLiveBars(apiBars), [apiBars]);
+  const bars = liveBars ?? apiBars;
+  useEffect(() => {
+    const es = new EventSource(apiPath(`/api/stream?symbols=${encodeURIComponent(sym)}`));
+    es.onmessage = (ev) => {
+      try {
+        const qs = JSON.parse(ev.data as string) as Quote[];
+        const q = qs.find((x) => x.symbol === sym);
+        if (q) setLiveBars((prev) => (prev && prev.length > 0 ? mergeTick(prev, q, INTERVAL_SEC[interval]) : prev));
+      } catch { /* malformed tick */ }
+    };
+    return () => es.close();
+  }, [sym, interval]);
   const { data: fundamentals } = useApi<Fundamentals>(`/api/fundamentals?symbol=${encodeURIComponent(sym)}`);
   const cmpPath = (s: string | undefined) =>
     s ? `/api/bars?symbol=${encodeURIComponent(s)}&interval=${interval}&range=${range}` : null;
